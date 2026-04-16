@@ -1,0 +1,2 @@
+.githooks/pre-commit
+scripts/strip_notebook_output.py
