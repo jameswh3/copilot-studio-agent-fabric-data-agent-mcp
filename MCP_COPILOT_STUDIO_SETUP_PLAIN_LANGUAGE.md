@@ -4,7 +4,7 @@ This runbook describes what we set up using browser portals only:
 
 - Fabric Data Agents as MCP endpoints
 - Entra app registration for OAuth 2.0
-- Copilot Studio MCP tool connections
+- Copilot Studio MCP tool connections (client secret pasted directly)
 
 Use this if your admins and makers are configuring everything in the web UI.
 
@@ -28,7 +28,15 @@ In Fabric:
 
 Tip: Keep a short list with Agent Name, Workspace, and MCP URL.
 
-## 2) Create the Entra app registration
+## 2) Create or open the Copilot Studio solution
+
+In Copilot Studio:
+
+1. Open your agent.
+2. Open the solution explorer for that agent, or create a custom solution if you are still using only the default solution.
+3. Confirm this is the solution that will carry the agent for export and import between environments.
+
+## 3) Create the Entra app registration
 
 In Entra admin center:
 
@@ -43,7 +51,7 @@ Capture these values:
 - Application (client) ID
 - Directory (tenant) ID
 
-## 3) Add API permissions
+## 4) Add API permissions
 
 Still in the app registration:
 
@@ -53,7 +61,7 @@ Still in the app registration:
 4. Add Item.Read.All.
 5. Save changes.
 
-## 4) Create client secret
+## 5) Create client secret
 
 In app registration > Certificates & secrets:
 
@@ -61,16 +69,16 @@ In app registration > Certificates & secrets:
 2. Choose an expiration policy your organization accepts.
 3. Copy the secret value immediately and store it securely.
 
-Important: You can only copy the secret value once.
+Important: You can only copy the secret value once. You will paste it directly into Copilot Studio in step 7.
 
-## 5) Grant admin consent
+## 6) Grant admin consent
 
 In app registration > API permissions:
 
 1. Select Grant admin consent for your organization.
 2. Confirm status shows granted for the required permissions.
 
-## 6) Add MCP tools in Copilot Studio
+## 7) Add MCP tools in Copilot Studio
 
 In Copilot Studio:
 
@@ -82,21 +90,29 @@ In Copilot Studio:
    - Server description
    - Server URL (the Fabric MCP endpoint)
 5. Set authentication to OAuth 2.0 (Manual).
+6. When prompted for the client secret, paste the value you copied in step 5.
 
-## 7) Configure OAuth fields in Copilot Studio
+## 8) Configure OAuth fields in Copilot Studio
 
 Use values from your Entra app:
 
 - Client ID: Application (client) ID
-- Client Secret: secret value you copied
-- Authorization URL: tenant-specific Microsoft identity authorize endpoint
-- Token URL: tenant-specific Microsoft identity token endpoint
+- Client Secret: the value you copied in step 5
+- Authorization URL: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
+- Token URL: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
 - Refresh URL: same as token URL
-- Scopes: Fabric delegated scopes required by your tools
+- Scopes: https://api.fabric.microsoft.com/DataAgent.Execute.All https://api.fabric.microsoft.com/Item.Read.All openid profile
+
+If the wizard throws a generic save error such as String or binary data would be truncated, try these safer values first:
+
+- Keep Server name short and use only letters, digits, hyphens, and underscores.
+- Keep Server description short.
+- Make sure Authorization URL, Token URL, and Refresh URL all use the same tenant ID.
+- Start with the minimum scope: https://api.fabric.microsoft.com/DataAgent.Execute.All
 
 Use the same OAuth values for each MCP tool connection.
 
-## 8) Register Redirect URI back in Entra
+## 9) Register Redirect URI back in Entra
 
 When you create each MCP connection in Copilot Studio, a Redirect URI is shown.
 
@@ -109,7 +125,7 @@ For each Redirect URI:
 
 Repeat for every MCP tool connection.
 
-## 9) Verify each connection in the Copilot Studio UI
+## 10) Verify each connection in the Copilot Studio UI
 
 In Copilot Studio:
 
@@ -118,7 +134,7 @@ In Copilot Studio:
 3. Confirm connection status is healthy/connected.
 4. Confirm the tool appears as available in the agent tool list.
 
-## 10) Finalize agent behavior
+## 11) Finalize agent behavior
 
 In Copilot Studio:
 
@@ -132,6 +148,12 @@ In Copilot Studio:
 - Connection fails during sign-in:
   - Check Redirect URI exists in Entra app registration.
   - Check client secret is valid and not expired.
+
+- Copilot Studio shows a generic truncation error when you select Create:
+  - This is usually a wizard-side length or validation issue.
+  - Shorten the Server name and Server description.
+  - Make sure the Authorization URL, Token URL, and Refresh URL all use the same tenant ID.
+  - Try saving with only https://api.fabric.microsoft.com/DataAgent.Execute.All in Scopes first.
 
 - Permission or consent errors:
   - Confirm required delegated permissions are present.
