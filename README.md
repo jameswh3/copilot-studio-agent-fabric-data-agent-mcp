@@ -17,7 +17,6 @@ Manual OAuth:
 OBO:
 
 - `setup_fabric_mcp_copilot_studio_obo.ipynb`
-- `MCP_COPILOT_STUDIO_SETUP_OBO_PLAIN_LANGUAGE.md`
 
 Reference:
 
