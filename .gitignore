@@ -1,2 +1,10 @@
 .githooks/
 scripts/
+.vscode/
+.env
+.env.local
+*.swagger.yaml
+*.openapi.json
+*_swagger*.yaml
+fabric_mcp_*.yaml
+workingswagger-*.yaml
