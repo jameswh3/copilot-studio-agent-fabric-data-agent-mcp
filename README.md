@@ -2,6 +2,7 @@
 
 This project documents and automates the On-Behalf-Of (OBO) setup for connecting Microsoft Fabric Data Agents as MCP endpoints to Copilot Studio agents.
 
+> **Important:** The Copilot Studio MCP wizard defaults to standard OAuth 2.0 authentication. This approach requires users to frequently re-authenticate through the connection manager, creating a frustrating user experience. This OBO implementation uses managed identity and federated credentials instead, which enables seamless token exchange without exposing secrets. Once a user authenticates and creates the connection, it can be reused reliably without repeated login cycles.
 
 ## Files
 
