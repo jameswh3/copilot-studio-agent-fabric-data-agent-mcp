@@ -2,7 +2,6 @@
 
 This project documents and automates the On-Behalf-Of (OBO) setup for connecting Microsoft Fabric Data Agents as MCP endpoints to Copilot Studio agents.
 
-The flow uses two app registrations, delegated permissions, and managed identity integration in the Power Platform custom connector.
 
 ## Files
 
@@ -14,31 +13,24 @@ Repository guide:
 
 - `README.md`
 
-## Swagger 2.0 Compatibility
-
-Power Platform and Copilot Studio custom connectors require Swagger 2.0, not OpenAPI 3.x.
-
-The notebook-generated specs use the tested MCP connector shape:
-
-- `swagger: '2.0'`
-- `host: api.fabric.microsoft.com`
-- `basePath: /`
-- full MCP endpoint path under `paths`
-- `x-ms-agentic-protocol: mcp-streamable-1.0` on the `post` operation
-
 ## Shared Prerequisites
+
+**Required for both paths:**
+
+- Rights to create Entra app registrations
+- Rights to grant admin consent
+- A published Microsoft Fabric Data Agent
+- Permission to create or edit a Power Platform custom connector
+- Permission to add tools in Copilot Studio if you plan to bind the connector there
+
+**Required only for Path A (Automated):**
 
 - Python 3.8 or later
 - Azure CLI installed
-- rights to create Entra app registrations
-- rights to grant admin consent
-- a published Microsoft Fabric Data Agent
-- permission to create or edit a Power Platform custom connector
-- permission to add tools in Copilot Studio if you plan to bind the connector there
 
 ## Shared .env Configuration
 
-The notebooks use a local `.env` file for persistent configuration.
+The `.env` file is only used in Path A (Automated). If using Path B (Manual), skip this section.
 
 Example values:
 
