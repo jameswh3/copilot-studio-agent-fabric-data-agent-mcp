@@ -1,26 +1,18 @@
 # Copilot Studio Agent -- Fabric Data Agent MCP
 
-This project provides two authentication patterns for connecting Microsoft Fabric Data Agents as MCP endpoints to Copilot Studio agents:
+This project documents and automates the On-Behalf-Of (OBO) setup for connecting Microsoft Fabric Data Agents as MCP endpoints to Copilot Studio agents.
 
-1. OAuth 2.0 (Manual): single app registration, manual secret handling, simpler setup.
-2. On-Behalf-Of (OBO): two app registrations, delegated permission model, better alignment with enterprise and ALM scenarios.
-
-Use the manual path when you want the smallest setup surface. Use the OBO path when you want a structured Entra permission model and Power Platform-friendly connector auth.
+The flow uses two app registrations, delegated permissions, and managed identity integration in the Power Platform custom connector.
 
 ## Files
 
-Manual OAuth:
-
-- `setup_fabric_mcp_copilot_studio_manual_auth.ipynb`
-- `MCP_COPILOT_STUDIO_SETUP_MANUAL_AUTH_PLAIN_LANGUAGE.md`
-
-OBO:
+Core setup:
 
 - `setup_fabric_mcp_copilot_studio_obo.ipynb`
 
-Reference:
+Repository guide:
 
-- `OAUTH_SETUP_COMPARISON.md`
+- `README.md`
 
 ## Swagger 2.0 Compatibility
 
@@ -61,43 +53,161 @@ SWAGGER_OUTPUT_FILE=workingswagger-obo-template.yaml
 
 Keep `.env` local and uncommitted.
 
-## Quick Start
+## Quick Start: Choose Your Path
 
-Manual OAuth:
+You have two options to set up OBO and the two Entra app registrations:
 
-1. Create and activate a virtual environment.
-2. Open `setup_fabric_mcp_copilot_studio_manual_auth.ipynb`.
-3. Run the notebook.
+- **Path A (Automated)**: Run the notebook to automate Entra configuration.
+- **Path B (Manual)**: Follow portal step-by-step instructions in the Azure portal.
 
-OBO:
+Both paths converge at **Power Platform custom connector configuration**, which requires portal access and cannot be automated.
 
-1. Create and activate a virtual environment.
-2. Open `setup_fabric_mcp_copilot_studio_obo.ipynb`.
-3. Run the notebook.
+### Prerequisites (Both Paths)
 
-Basic setup commands:
+- Tenant admin rights to create app registrations and grant admin consent.
+- A published Microsoft Fabric Data Agent endpoint.
+- Permission to create or edit a Power Platform custom connector.
+
+### Path A: Automated Setup (Notebook)
+
+Use this path if you have end-to-end tenant access and want to automate Entra app registration.
+
+**1. Create app registrations manually (Portal)**
+
+Before running the notebook, you must create two empty app registrations in Entra:
+
+1. Create first app registration (Service app):
+   - Single tenant
+   - Save the Application ID as `SERVICE_APP_ID`
+
+2. Create second app registration (Connector app):
+   - Single tenant
+   - Save the Application ID as `CONNECTOR_CLIENT_ID`
+
+**2. Set up environment**
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-## OBO Notebook Walkthrough
+**3. Create .env file**
 
-This section is the standalone walkthrough for the flow implemented in `setup_fabric_mcp_copilot_studio_obo.ipynb`.
+Create a `.env` file in the repository root with these values:
 
-It follows the same sequence as the notebook:
+```dotenv
+TENANT_ID=<your-tenant-id>
+SERVICE_APP_ID=<service-app-client-id>
+CONNECTOR_CLIENT_ID=<connector-app-client-id>
+MCP_SERVER_URL=https://api.fabric.microsoft.com/v1/mcp/workspaces/<workspace-id>/dataagents/<dataagent-id>/agent
+```
 
-1. Install notebook dependencies.
-2. Load local configuration from `.env`.
-3. Configure the two Entra app registrations used for the OBO pattern.
-4. Verify the live Entra state.
-5. Generate a Swagger 2.0 custom connector definition.
-6. Configure the Power Platform custom connector.
-7. Copy redirect URI and managed identity values back into Entra.
-8. Test the connector with MCP JSON-RPC requests.
+**4. Sign in with Azure CLI**
 
-This walkthrough can be used without running the notebook, but it stays aligned to the notebook's actual behavior and outputs.
+```powershell
+az login --tenant <TENANT_ID> --use-device-code --scope https://graph.microsoft.com/.default
+```
+
+**5. Run notebook cells in order**
+
+Open `setup_fabric_mcp_copilot_studio_obo.ipynb` and run these cells:
+
+| Cell # | What it does |
+|--------|---------------|
+| 1 | Install dependencies: `requests`, `azure-identity`, `python-dotenv` |
+| 2 | Load `.env`, validate values, set up Graph helpers |
+| 3 | Configure service app (identifier URI, scope) and connector app (identifier URI, scope, permissions, preauth) |
+| 4 | Verify Entra state; print next manual steps |
+| 5 | Generate Swagger 2.0 file for Power Platform import |
+| 6 | Print Power Platform connector security configuration checklist |
+| 7 | Print test payloads for Power Platform Test tab |
+
+After cells 1-4 complete successfully, proceed to **Common Steps: Power Platform Configuration** below.
+
+### Path B: Manual Setup (Portal)
+
+Use this path if you do not have end-to-end access, have security policies requiring manual approval, or prefer to do portal-based configuration.
+
+No `.env` or notebook required for this path; all steps use the Azure portal.
+
+#### B1 - Create the Service App Registration
+
+1. In the Azure portal, go to **Entra ID > App registrations > New registration**.
+2. Create a new app registration:
+   - Name: `Fabric MCP Service App` (or similar)
+   - Supported account types: Single tenant
+3. After creation, open the app and note the **Application (client) ID** (this is your `SERVICE_APP_ID`).
+4. Go to **Manage > Expose an API**:
+   - Click **Set** next to Application ID URI
+   - Accept the generated `api://{SERVICE_APP_ID}` URI
+   - Click **Save**
+5. Under Expose an API, click **Add a scope**:
+   - Scope name: `access_as_user`
+   - Admin consent display name: `Allow connector to call service on behalf of users`
+   - Admin consent description: `Allows delegated access to the MCP service on behalf of users`
+   - User consent display name: `Allow connector to act on your behalf`
+   - User consent description: `Allows delegated access to the MCP service on your behalf`
+   - State: Enabled
+   - Click **Add scope**
+
+#### B2 - Create the Connector App Registration
+
+1. In the Azure portal, go to **Entra ID > App registrations > New registration**.
+2. Create a new app registration:
+   - Name: `Fabric MCP Connector App` (or similar)
+   - Supported account types: Single tenant
+3. After creation, note the **Application (client) ID** (this is your `CONNECTOR_CLIENT_ID`).
+4. Go to **Manage > Expose an API**:
+   - Click **Set** next to Application ID URI
+   - Accept the generated `api://{CONNECTOR_CLIENT_ID}` URI
+   - Click **Save**
+5. Under Expose an API, click **Add a scope**:
+   - Scope name: `access_as_user`
+   - Admin consent display name: `Allow Azure API Connections to obtain tokens on behalf of users`
+   - Admin consent description: `Allows Azure API Connections to obtain tokens on behalf of the user`
+   - User consent display name: `Allow connector to act on your behalf`
+   - User consent description: `Allows Azure API Connections to access resources on your behalf`
+   - State: Enabled
+   - Click **Add scope**
+
+#### B3 - Add Permissions to Connector App
+
+1. Open the Connector app registration.
+2. Go to **Manage > API permissions**.
+3. Click **Add a permission**:
+   - Select **APIs my organization uses** tab
+   - Search for and select your Service app (by name or `SERVICE_APP_ID`)
+   - Select **Delegated permissions**
+   - Check `access_as_user`
+   - Click **Add permissions**
+4. Click **Add a permission** again:
+   - Select **APIs my organization uses** tab
+   - Search for `Microsoft Fabric`
+   - Select **Delegated permissions**
+   - Check `DataAgent.Execute.All` and `Item.Read.All`
+   - Click **Add permissions**
+5. Click **Grant admin consent for [tenant name]** and confirm.
+
+#### B4 - Preauthorize Azure API Connections
+
+1. Open the Connector app registration.
+2. Go to **Manage > Expose an API**.
+3. Under Authorized client applications, click **Add a client application**:
+   - Client ID: `fe053c5f-3692-4f14-aef2-ee34fc081cae` (Azure API Connections)
+   - Authorized scopes: Check `api://{CONNECTOR_CLIENT_ID}/access_as_user`
+   - Click **Add application**
+
+#### B5 - Verify Entra Configuration
+
+Verify these settings are present before moving to Power Platform configuration:
+
+- Service app has `api://{SERVICE_APP_ID}` identifier URI
+- Service app has `access_as_user` scope
+- Connector app has `api://{CONNECTOR_CLIENT_ID}` identifier URI
+- Connector app has `access_as_user` scope
+- Connector app has delegated permission to service app `access_as_user` scope
+- Connector app has delegated permissions to Fabric (`DataAgent.Execute.All`, `Item.Read.All`)
+- Azure API Connections (`fe053c5f-...`) is preauthorized on connector app with `api://{CONNECTOR_CLIENT_ID}/access_as_user` scope
 
 ## What The OBO Flow Creates
 
@@ -113,292 +223,176 @@ The connector app is configured to request delegated access to:
 
 The notebook also preauthorizes Azure API Connections on the connector app so Power Platform can participate in the token flow.
 
-## Important Runtime Note
 
-There are two related ideas in this setup:
+## Common Steps: Power Platform Configuration
 
-- The Entra OBO app registration model uses both the service app and connector app.
-- The connector test flow that worked against the live Fabric endpoint used Fabric as the runtime audience.
+These steps apply regardless of which path (A or B) you followed for Entra app registration.
 
-That means the service app is part of the Entra permission model created by the notebook, but the final direct connector test talks to Fabric and uses:
+### Generate the Swagger 2.0 File
 
-- Resource URL: `https://api.fabric.microsoft.com`
-- Scope: `https://api.fabric.microsoft.com/.default`
+**If you used Path A (Notebook):**
 
-If you later place your own service endpoint in front of Fabric, that service app becomes the runtime resource as well.
+Run cell 5 in the notebook to automatically generate `workingswagger-obo-template.yaml`. Skip to the next subsection.
 
-## Step 1 - Create the Service App Registration
+**If you used Path B (Manual):**
 
-Create a new Entra app registration for the service app.
+Create a Swagger 2.0 file manually. Use this template and replace placeholders:
 
-Use these settings:
-
-- Supported account types: Single tenant
-- Save the Application (client) ID as `SERVICE_APP_ID`
-
-Then go to Expose an API and configure:
-
-- Application ID URI: `api://<SERVICE_APP_ID>`
-- Scope name: `access_as_user`
-- Admin consent display name: `Allow connector to call service on behalf of users`
-- Admin consent description: `Allows delegated access to the MCP service on behalf of users`
-- User consent display name: `Allow connector to act on your behalf`
-- User consent description: `Allows delegated access to the MCP service on your behalf`
-
-This is the resource boundary for the two-app OBO model.
-
-## Step 2 - Create the Connector App Registration
-
-Create a second Entra app registration for the connector app.
-
-Use these settings:
-
-- Supported account types: Single tenant
-- Save the Application (client) ID as `CONNECTOR_CLIENT_ID`
-
-Then configure two things on the connector app.
-
-First, under API permissions, add delegated permission to the service app:
-
-- API: your service app
-- Delegated permission: `access_as_user`
-
-Second, under Expose an API, configure:
-
-- Application ID URI: `api://<CONNECTOR_CLIENT_ID>`
-- Scope name: `access_as_user`
-- Admin consent display name: `Allow Azure API Connections to obtain tokens on behalf of users`
-- Admin consent description: `Allows Azure API Connections to obtain tokens on behalf of the user`
-- User consent display name: `Allow connector to act on your behalf`
-- User consent description: `Allows Azure API Connections to access resources on your behalf`
-
-Then preauthorize Azure API Connections:
-
-- Authorized client application: `fe053c5f-3692-4f14-aef2-ee34fc081cae`
-- Authorized scope: `api://<CONNECTOR_CLIENT_ID>/access_as_user`
-
-Grant admin consent after adding permissions.
-
-## Step 3 - Sign In With Azure CLI
-
-Sign in before running the notebook or before reproducing its Graph operations:
-
-```powershell
-az login --tenant <TENANT_ID> --use-device-code --scope https://graph.microsoft.com/.default
+```yaml
+swagger: '2.0'
+info:
+  title: Fabric MCP Server
+  description: Swagger template for a Copilot Studio custom connector that calls a Fabric Data Agent MCP endpoint.
+  version: 1.0.0
+host: api.fabric.microsoft.com
+basePath: /
+schemes:
+  - https
+paths:
+  /v1/mcp/workspaces/<WORKSPACE_ID>/dataagents/<DATAAGENT_ID>/agent:
+    post:
+      responses:
+        '200':
+          description: Immediate Response
+      x-ms-agentic-protocol: mcp-streamable-1.0
+      operationId: InvokeServer
+      summary: Fabric MCP Server
+      description: Invokes the MCP server endpoint for the configured Fabric Data Agent.
+securityDefinitions:
+  oauth2-auth:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/authorize
+    tokenUrl: https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token
+    scopes:
+      https://api.fabric.microsoft.com/.default: https://api.fabric.microsoft.com/.default
+security:
+  - oauth2-auth:
+      - https://api.fabric.microsoft.com/.default
 ```
 
-The notebook uses Azure CLI authentication to call Microsoft Graph.
+Replace:
+- `<WORKSPACE_ID>`: Your Fabric workspace ID
+- `<DATAAGENT_ID>`: Your Fabric Data Agent ID
+- `<TENANT_ID>`: Your Microsoft Entra tenant ID
 
-## Step 4 - Run The Notebook Setup Logic
+### Import the Custom Connector
 
-Open `setup_fabric_mcp_copilot_studio_obo.ipynb` and run the first five cells in order.
-
-What they do:
-
-1. Install `requests`, `azure-identity`, and `python-dotenv`.
-2. Load `.env`, validate required values, and create Graph helpers.
-3. Configure the service app and connector app.
-4. Resolve live permission IDs from Entra and Fabric.
-5. Verify that the final state is correct.
-
-The notebook applies these live changes:
-
-- service app identifier URI becomes `api://<SERVICE_APP_ID>`
-- service app exposes `access_as_user`
-- connector app identifier URI becomes `api://<CONNECTOR_CLIENT_ID>`
-- connector app requests delegated access to the service app scope
-- connector app requests Fabric delegated scopes needed by the Data Agent endpoint
-- connector app exposes its own `access_as_user` scope
-- connector app preauthorizes Azure API Connections
-- admin consent is requested for the connector app
-
-## Step 5 - Verify The App Registration State
-
-The notebook verify step checks:
-
-- service app identifier URI exists
-- service app scope `access_as_user` exists
-- connector app identifier URI exists
-- connector app scope `access_as_user` exists
-- Azure API Connections is preauthorized on the connector app
-- connector app has delegated permission to the service app
-- connector app has the required Fabric delegated permissions
-- federated credentials count on the connector app
-
-Do not continue until those checks are successful.
-
-## Step 6 - Generate The Swagger 2.0 File
-
-Run the Swagger generation cell in the notebook.
-
-It produces a Swagger 2.0 file using:
-
-- your tenant ID for `authorizationUrl` and `tokenUrl`
-- your `MCP_SERVER_URL` for the host and path
-- the Fabric runtime scope (`https://api.fabric.microsoft.com/.default`) for the security definition
-
-The generated file keeps the Power Platform-compatible MCP shape:
-
-- `swagger: '2.0'`
-- `host: api.fabric.microsoft.com`
-- `basePath: /`
-- full MCP endpoint path under `paths`
-- `x-ms-agentic-protocol: mcp-streamable-1.0`
-- operation name `InvokeServer`
-
-## Step 7 - Import The Custom Connector
-
-In Power Automate or Power Platform custom connectors:
-
-1. Create a new custom connector from Swagger.
-2. Import the generated Swagger 2.0 file.
+1. In Power Automate or Power Platform custom connectors, create a new custom connector from Swagger.
+2. Import the Swagger 2.0 file you generated (or created manually).
 3. Save the connector.
 
-At this point, the connector exists but still needs final security wiring.
+At this point, the connector exists but still needs security configuration.
 
-## Step 8 - Configure Connector Security
+### Configure Connector Security (OBO)
 
-For the direct Fabric test path that worked, configure the Security tab with these values:
+1. Open the connector and go to the **Security** tab.
+2. Configure these values:
+   - Authentication type: **OAuth 2.0**
+   - Identity Provider: **Azure Active Directory**
+   - Secret option: **Use managed identity**
+   - Enable on-behalf-of login: **true**
+   - Client ID: `<CONNECTOR_CLIENT_ID>`
+   - Tenant ID: `<TENANT_ID>` (not `common`)
+   - Resource URL: `https://api.fabric.microsoft.com`
+   - Scope: `https://api.fabric.microsoft.com/.default`
+3. Go to the **Definition** tab and confirm:
+   - Operation: **InvokeServer**
+   - Verb: **POST**
+   - URL: Your MCP server URL (e.g., `https://api.fabric.microsoft.com/v1/mcp/workspaces/<WORKSPACE_ID>/dataagents/<DATAAGENT_ID>/agent`)
+   - `x-ms-agentic-protocol: mcp-streamable-1.0`
+4. Save the connector once.
 
-- Authentication type: OAuth 2.0
-- Identity Provider: Azure Active Directory
-- Secret option: Use managed identity
-- Enable on-behalf-of login: true
-- Client ID: `CONNECTOR_CLIENT_ID`
-- Tenant ID: your tenant ID, not `common`
-- Resource URL: `https://api.fabric.microsoft.com`
-- Scope: `https://api.fabric.microsoft.com/.default`
+### Add Redirect URI and Federated Credential
 
-On the Definition tab, confirm:
-
-- Operation: `InvokeServer`
-- Verb: `POST`
-- URL: your `MCP_SERVER_URL`
-- `x-ms-agentic-protocol: mcp-streamable-1.0`
-
-Save the connector.
-
-## Step 9 - Copy Values Back Into Entra
-
-After the first save, copy these values from the connector details:
+After saving, copy these values from the connector details:
 
 - Redirect URL
 - Managed identity Issuer
 - Managed identity Subject
 
-Enter those values into the connector app registration in Entra.
+Then add them to your Connector app registration in Entra:
 
-Authentication page:
+1. Open the Connector app registration.
+2. Go to **Manage > Authentication**:
+   - Under Redirect URIs, click **Add URI**
+   - Paste the Redirect URL from connector details
+   - Click **Save**
+3. Go to **Manage > Certificates and secrets**:
+   - Click the **Federated credentials** tab
+   - Click **Add credential**
+   - Configure:
+     - Scenario: **Other issuer**
+     - Issuer: paste the Managed identity Issuer value
+     - Subject: paste the Managed identity Subject value
+     - Audience: `api://AzureADTokenExchange`
+   - Click **Add**
 
-- Add the Redirect URL under Redirect URIs
+**Service app registration (resource app):** No action required in this step.
 
-Certificates and secrets > Federated credentials:
+### Recreate Connection
 
-- Scenario: `Other issuer`
-- Issuer: connector Managed identity Issuer
-- Subject: connector Managed identity Subject
-- Audience: `api://AzureADTokenExchange`
+After configuring federated credentials and security settings:
 
-No update is required on the service app for this step.
+1. Delete any existing connections for this connector.
+2. Create a new connection for the connector.
+3. Complete sign-in when prompted.
 
-## Step 10 - Recreate The Connector Connection
+This avoids stale token audience issues after security changes.
 
-After changing Security or federated credential settings:
+### Validate Connection and Test
 
-1. Delete older connections for the connector.
-2. Create a fresh connection.
-3. Complete sign-in again.
-
-This avoids stale token audience issues.
-
-## Step 11 - Test The Connector In Power Platform
-
-Open the Test tab and choose the `InvokeServer` operation.
-
-Turn on Raw Body.
-
-Use these requests in order.
-
-### Request 1 - initialize
-
-```json
-{
-   "jsonrpc": "2.0",
-   "id": 1,
-   "method": "initialize",
-   "params": {
-      "protocolVersion": "2024-11-05",
-      "capabilities": {},
-      "clientInfo": {
-         "name": "power-platform-test",
-         "version": "1.0.0"
-      }
-   }
-}
-```
-
-Expected result:
-
-- HTTP 200
-- `jsonrpc: 2.0`
-- `result.protocolVersion`
-- `result.serverInfo`
-
-### Request 2 - tools/list
+1. Open the connector Test tab and select the `InvokeServer` operation.
+2. Turn on **Raw Body**.
+3. Send the initialize request:
 
 ```json
 {
-   "jsonrpc": "2.0",
-   "id": 2,
-   "method": "tools/list",
-   "params": {}
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "power-platform-test",
+      "version": "1.0.0"
+    }
+  }
 }
 ```
 
-Expected result:
+Expected result: HTTP 200 with `jsonrpc: 2.0`, `result.protocolVersion`, and `result.serverInfo`.
 
-- HTTP 200
-- a tool list returned by the Fabric Data Agent
-
-### Request 3 - tools/call
-
-Replace the tool name with one returned by `tools/list` and provide the arguments that tool expects.
+4. Send the tools/list request:
 
 ```json
 {
-   "jsonrpc": "2.0",
-   "id": 3,
-   "method": "tools/call",
-   "params": {
-      "name": "<tool-name-from-tools-list>",
-      "arguments": {}
-   }
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
 }
 ```
 
-Important:
+Expected result: HTTP 200 with the list of tools from the Fabric Data Agent.
+
+**Important notes:**
 
 - `InvokeServer` is the Power Platform operation name.
 - The JSON body `method` must be an MCP method such as `initialize`, `tools/list`, or `tools/call`.
+- `tools/call` requires a `user_question` parameter; if the Fabric Data Agent requires it, you can test with `initialize` and `tools/list` to validate the connection is working.
 
-## Step 12 - Add The Connector To Copilot Studio
+### Add Connector to Copilot Studio
 
-After the connector tests successfully:
+After the connector validates successfully with `initialize` and `tools/list`:
 
 1. Open your Copilot Studio agent.
 2. Add the custom connector as a tool.
-3. Choose the MCP operation.
+3. Select the MCP operation.
 4. Publish and test the agent.
 
 ## Troubleshooting
-
-Manual OAuth issues:
-
-- Connection fails at sign-in: check the redirect URI in the Entra app registration.
-- Copilot Studio create flow throws a truncation-style error: shorten server name, description, and initial scope set.
-- Permission denied: verify admin consent was granted on Fabric API scopes.
-
-OBO issues:
 
 - Token acquisition fails: verify Azure API Connections is preauthorized on the connector app.
 - Redirect URL invalid: ensure the exact connector Redirect URL is present on the connector app.
@@ -406,18 +400,6 @@ OBO issues:
 - Test still uses old token audience: delete and recreate the connector connection after Security changes.
 - `invokeServer` was sent as the MCP method: use `initialize`, `tools/list`, or `tools/call` in the JSON body.
 - Test tab request shape is wrong: enable Raw Body and send the full JSON-RPC payload.
-
-## Comparison Matrix
-
-| Aspect | Manual OAuth | OBO |
-| --- | --- | --- |
-| Complexity | Simple | Medium |
-| App registrations | 1 | 2 |
-| Token management | Manual or exposed | Framework-managed |
-| Multi-resource support | Single, primarily Fabric | Yes |
-| Seamless consent | No | Yes |
-| ALM support | No | Yes |
-| Enterprise alignment | Lower | Higher |
 
 ## References
 

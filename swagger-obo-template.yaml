@@ -1,0 +1,30 @@
+swagger: '2.0'
+info:
+  title: Fabric MCP Server
+  description: Swagger template for a Copilot Studio custom connector that calls a Fabric Data Agent MCP endpoint.
+  version: 1.0.0
+host: api.fabric.microsoft.com
+basePath: /
+schemes:
+  - https
+paths:
+  /v1/mcp/workspaces/YOUR_WORKSPACE_ID/dataagents/YOUR_DATA_AGENT_ID/agent:
+    post:
+      responses:
+        '200':
+          description: Immediate Response
+      x-ms-agentic-protocol: mcp-streamable-1.0
+      operationId: InvokeSaerver
+      summary: Fabric MCP Server
+      description: Invokes the MCP server endpoint for the configured Fabric Data Agent.
+securityDefinitions:
+  oauth2-auth:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/authorize
+    tokenUrl: https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/token
+    scopes:
+      https://api.fabric.microsoft.com/.default: https://api.fabric.microsoft.com/.default
+security:
+  - oauth2-auth:
+      - https://api.fabric.microsoft.com/.default
